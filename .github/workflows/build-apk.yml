@@ -18,6 +18,12 @@ jobs:
       with:
         java-version: '11'
         distribution: 'temurin'
+    
+    # Installation d'une version compatible du NDK
+    - name: Installation du NDK compatible
+      run: |
+        echo "Installation du NDK 21.4.7075529 (compatible avec Gradle 6.9.4)"
+        echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;21.4.7075529"
         
     - name: Créer le script de correction
       run: |
@@ -69,6 +75,11 @@ jobs:
           sed -i "s/org.tensorflow:tensorflow-lite:0.0.0-nightly/org.tensorflow:tensorflow-lite:2.8.0/g" ESP32CamAI/build.gradle
           sed -i "s/org.tensorflow:tensorflow-lite-gpu:0.0.0-nightly/org.tensorflow:tensorflow-lite-gpu:2.8.0/g" ESP32CamAI/build.gradle
           sed -i "s/compile /implementation /g" ESP32CamAI/build.gradle
+          
+          # Ajouter la configuration NDK dans build.gradle du module
+          if ! grep -q "ndkVersion" ESP32CamAI/build.gradle; then
+            sed -i '/android {/a \    ndkVersion "21.4.7075529"' ESP32CamAI/build.gradle
+          fi
         fi
         
         # Remplacer jcenter par mavenCentral
@@ -102,6 +113,8 @@ jobs:
         ./gradlew clean || true
         
     - name: Build avec Gradle
+      env:
+        ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/21.4.7075529
       run: |
         cd ESP32CamAI_android
         ./gradlew assembleDebug --stacktrace --no-daemon
