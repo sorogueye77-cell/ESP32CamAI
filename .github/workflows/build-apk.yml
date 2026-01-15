@@ -29,16 +29,16 @@ jobs:
             with open(filepath, 'r') as f:
                 content = f.read()
             
-            # Remplacer setNumThreads
+            # Remplacer setNumThreads (avec ou sans espaces)
             content = re.sub(
-                r'if \((\w+) != null\) \1\.setNumThreads\(num_threads\);',
+                r'if\s*\((\w+)\s*!=\s*null\)\s*\1\.setNumThreads\(num_threads\);',
                 r'if (\1 != null) { /* \1.setNumThreads(num_threads); // API deprecated */ }',
                 content
             )
             
-            # Remplacer setUseNNAPI
+            # Remplacer setUseNNAPI (avec ou sans espaces)
             content = re.sub(
-                r'if \((\w+) != null\) \1\.setUseNNAPI\(isChecked\);',
+                r'if\s*\((\w+)\s*!=\s*null\)\s*\1\.setUseNNAPI\(isChecked\);',
                 r'if (\1 != null) { /* \1.setUseNNAPI(isChecked); // API deprecated */ }',
                 content
             )
@@ -50,7 +50,11 @@ jobs:
         
         if __name__ == '__main__':
             for filepath in sys.argv[1:]:
-                fix_java_file(filepath)
+                try:
+                    fix_java_file(filepath)
+                except Exception as e:
+                    print(f"Error fixing {filepath}: {e}")
+                    sys.exit(1)
         EOF
         
     - name: Mettre à jour Gradle et dépendances
