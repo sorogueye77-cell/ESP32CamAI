@@ -19,7 +19,41 @@ jobs:
         java-version: '11'
         distribution: 'temurin'
         
-    - name: Mettre à jour Gradle Wrapper et corriger le code
+    - name: Créer le script de correction
+      run: |
+        cat > fix_tflite.py << 'EOF'
+        import re
+        import sys
+        
+        def fix_java_file(filepath):
+            with open(filepath, 'r') as f:
+                content = f.read()
+            
+            # Remplacer setNumThreads
+            content = re.sub(
+                r'if \((\w+) != null\) \1\.setNumThreads\(num_threads\);',
+                r'if (\1 != null) { /* \1.setNumThreads(num_threads); // API deprecated */ }',
+                content
+            )
+            
+            # Remplacer setUseNNAPI
+            content = re.sub(
+                r'if \((\w+) != null\) \1\.setUseNNAPI\(isChecked\);',
+                r'if (\1 != null) { /* \1.setUseNNAPI(isChecked); // API deprecated */ }',
+                content
+            )
+            
+            with open(filepath, 'w') as f:
+                f.write(content)
+            
+            print(f"Fixed: {filepath}")
+        
+        if __name__ == '__main__':
+            for filepath in sys.argv[1:]:
+                fix_java_file(filepath)
+        EOF
+        
+    - name: Mettre à jour Gradle et dépendances
       run: |
         cd ESP32CamAI_android
         
@@ -36,24 +70,22 @@ jobs:
         # Remplacer jcenter par mavenCentral
         find . -name "build.gradle" -type f -exec sed -i 's/jcenter()/mavenCentral()/g' {} \;
         
-        # Corriger les appels API TensorFlow Lite dans les fichiers Java
-        # Fichier 1: TFLiteObjectDetectionSSDAPIModel.java
-        sed -i 's/tfLiteSSD\.setNumThreads(num_threads)/\/\/ tfLiteSSD.setNumThreads(num_threads) \/\/ API deprecated/g' ESP32CamAI/src/main/java/com/p4f/esp32camai/tflite/TFLiteObjectDetectionSSDAPIModel.java
-        sed -i 's/tfLiteSSD\.setUseNNAPI(isChecked)/\/\/ tfLiteSSD.setUseNNAPI(isChecked) \/\/ API deprecated/g' ESP32CamAI/src/main/java/com/p4f/esp32camai/tflite/TFLiteObjectDetectionSSDAPIModel.java
-        
-        # Fichier 2: TFLiteObjectDetectionAPIModel.java
-        sed -i 's/tfLiteYolo\.setNumThreads(num_threads)/\/\/ tfLiteYolo.setNumThreads(num_threads) \/\/ API deprecated/g' ESP32CamAI/src/main/java/com/p4f/esp32camai/tflite/TFLiteObjectDetectionAPIModel.java
-        sed -i 's/tfLiteYolo\.setUseNNAPI(isChecked)/\/\/ tfLiteYolo.setUseNNAPI(isChecked) \/\/ API deprecated/g' ESP32CamAI/src/main/java/com/p4f/esp32camai/tflite/TFLiteObjectDetectionAPIModel.java
-        
-        # Fichier 3: TFLiteSegmentationAPIModel.java
-        sed -i 's/tfLiteSeg\.setNumThreads(num_threads)/\/\/ tfLiteSeg.setNumThreads(num_threads) \/\/ API deprecated/g' ESP32CamAI/src/main/java/com/p4f/esp32camai/tflite/TFLiteSegmentationAPIModel.java
-        sed -i 's/tfLiteSeg\.setUseNNAPI(isChecked)/\/\/ tfLiteSeg.setUseNNAPI(isChecked) \/\/ API deprecated/g' ESP32CamAI/src/main/java/com/p4f/esp32camai/tflite/TFLiteSegmentationAPIModel.java
+    - name: Corriger les fichiers Java TensorFlow Lite
+      run: |
+        cd ESP32CamAI_android
+        python3 ../fix_tflite.py \
+          ESP32CamAI/src/main/java/com/p4f/esp32camai/tflite/TFLiteObjectDetectionSSDAPIModel.java \
+          ESP32CamAI/src/main/java/com/p4f/esp32camai/tflite/TFLiteObjectDetectionAPIModel.java \
+          ESP32CamAI/src/main/java/com/p4f/esp32camai/tflite/TFLiteSegmentationAPIModel.java
         
     - name: Vérifier les modifications
       run: |
         cd ESP32CamAI_android
-        echo "=== Vérification des corrections ==="
-        grep -n "setNumThreads\|setUseNNAPI" ESP32CamAI/src/main/java/com/p4f/esp32camai/tflite/*.java || echo "Méthodes dépréciées commentées avec succès"
+        echo "=== Vérification TFLiteObjectDetectionSSDAPIModel.java ==="
+        grep -A2 -B2 "setNumThreads\|setUseNNAPI" ESP32CamAI/src/main/java/com/p4f/esp32camai/tflite/TFLiteObjectDetectionSSDAPIModel.java || echo "OK"
+        echo ""
+        echo "=== Vérification TFLiteObjectDetectionAPIModel.java ==="
+        grep -A2 -B2 "setNumThreads\|setUseNNAPI" ESP32CamAI/src/main/java/com/p4f/esp32camai/tflite/TFLiteObjectDetectionAPIModel.java || echo "OK"
         
     - name: Accorder les permissions d'exécution à gradlew
       run: |
@@ -70,8 +102,13 @@ jobs:
         cd ESP32CamAI_android
         ./gradlew assembleDebug --stacktrace --no-daemon
         
+    - name: Lister les APK générés
+      run: |
+        echo "=== APK générés ==="
+        find ESP32CamAI_android -name "*.apk" -type f
+        
     - name: Upload de l'APK
       uses: actions/upload-artifact@v4
       with:
-        name: app-debug
-        path: ESP32CamAI_android/ESP32CamAI/build/outputs/apk/debug/*.apk
+        name: ESP32CamAI-debug-apk
+        path: ESP32CamAI_android/**/build/outputs/apk/debug/*.apk
