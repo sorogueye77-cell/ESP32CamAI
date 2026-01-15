@@ -13,21 +13,32 @@ jobs:
     - name: Checkout du code
       uses: actions/checkout@v4
       
-    - name: Configuration de JDK 17
+    - name: Configuration de JDK 11
       uses: actions/setup-java@v4
       with:
-        java-version: '17'
+        java-version: '11'
         distribution: 'temurin'
+        
+    - name: Mettre à jour Gradle Wrapper vers version compatible
+      run: |
+        cd ESP32CamAI_android
+        # Remplacer la version de Gradle par une version compatible avec JDK 11
+        sed -i 's/gradle-5.4.1-all.zip/gradle-6.9.4-all.zip/g' gradle/wrapper/gradle-wrapper.properties
         
     - name: Accorder les permissions d'exécution à gradlew
       run: |
         cd ESP32CamAI_android
         chmod +x gradlew
         
+    - name: Nettoyer le cache Gradle
+      run: |
+        cd ESP32CamAI_android
+        ./gradlew clean || true
+        
     - name: Build avec Gradle
       run: |
         cd ESP32CamAI_android
-        ./gradlew assembleDebug --stacktrace
+        ./gradlew assembleDebug --stacktrace --no-daemon
         
     - name: Upload de l'APK
       uses: actions/upload-artifact@v4
