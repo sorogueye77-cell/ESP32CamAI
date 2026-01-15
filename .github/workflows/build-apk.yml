@@ -19,11 +19,32 @@ jobs:
         java-version: '11'
         distribution: 'temurin'
         
-    - name: Mettre à jour Gradle Wrapper vers version compatible
+    - name: Mettre à jour Gradle Wrapper et dépendances
       run: |
         cd ESP32CamAI_android
-        # Remplacer la version de Gradle par une version compatible avec JDK 11
+        # Mettre à jour Gradle vers version compatible
         sed -i 's/gradle-5.4.1-all.zip/gradle-6.9.4-all.zip/g' gradle/wrapper/gradle-wrapper.properties
+        
+        # Corriger la version de TensorFlow Lite dans build.gradle
+        if [ -f "build.gradle" ]; then
+          sed -i "s/org.tensorflow:tensorflow-lite:0.0.0-nightly/org.tensorflow:tensorflow-lite:2.8.0/g" build.gradle
+        fi
+        
+        # Vérifier aussi dans app/build.gradle
+        if [ -f "app/build.gradle" ]; then
+          sed -i "s/org.tensorflow:tensorflow-lite:0.0.0-nightly/org.tensorflow:tensorflow-lite:2.8.0/g" app/build.gradle
+        fi
+        
+        # Mettre à jour les repositories si nécessaire
+        find . -name "build.gradle" -type f -exec sed -i 's/jcenter()/mavenCentral()/g' {} \;
+        
+    - name: Afficher les modifications (debug)
+      run: |
+        cd ESP32CamAI_android
+        echo "=== Contenu de build.gradle ==="
+        cat build.gradle || echo "Pas de build.gradle à la racine"
+        echo "=== Contenu de app/build.gradle ==="
+        cat app/build.gradle || echo "Pas de app/build.gradle"
         
     - name: Accorder les permissions d'exécution à gradlew
       run: |
